@@ -1,0 +1,75 @@
+{{- $fullName := include "web-app.fullname" . -}}
+{{- range $name, $data := .Values.cronJobs }}
+{{- if eq $data.enabled true -}}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: "{{ $fullName }}-{{ $name }}"
+  labels:
+    {{- include "web-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: "cronjob-{{ $name }}"
+spec:
+  schedule: {{ $data.schedule | quote }}
+  concurrencyPolicy: {{ $data.concurrencyPolicy | default "Allow" }}
+  suspend: {{ $data.suspend | default "false" }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ $data.ttlSecondsAfterFinished | default 3600 }}
+      backoffLimit: {{ $data.backoffLimit | default 1 }}
+      template:
+        metadata:
+          name: "{{ $fullName }}-cronjob-{{ $name }}"
+          {{- with $data.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          labels:
+            {{- include "web-app.labels" $ | nindent 12 }}
+            app.kubernetes.io/component: "cronjob-{{ $name }}"
+        spec:
+          restartPolicy: {{ $data.restartPolicy | default "Never" }}
+          containers:
+            - name: {{ $name | quote }}
+              env:
+              {{- range $key, $val := $.Values.baseEnv }}
+                - name: {{ $key | quote }}
+                {{- if typeIs "string" $val }}
+                  value: {{ tpl $val $ | quote }}
+                {{- else if typeIs "map[string]interface {}" $val }}
+                  {{- tpl ($val | toYaml ) $ | nindent 18 }}
+                {{- else }}
+                  value: {{ $val | quote }}
+                {{- end }}
+              {{- end }}
+              {{- range $key, $val := $.Values.env }}
+                - name: {{ $key | quote }}
+                {{- if typeIs "string" $val }}
+                  value: {{ tpl $val $ | quote }}
+                {{- else if typeIs "map[string]interface {}" $val }}
+                  {{- tpl ($val | toYaml ) $ | nindent 18 }}
+                {{- else }}
+                  value: {{ $val | quote }}
+                {{- end }}
+              {{- end }}
+              {{- range $key, $val := $data.env  }}
+                - name: {{ $key | quote }}
+                {{- if typeIs "string" $val }}
+                  value: {{ tpl $val $ | quote }}
+                {{- else if typeIs "map[string]interface {}" $val }}
+                  {{- tpl ($val | toYaml ) $ | nindent 18 }}
+                {{- else }}
+                  value: {{ $val | quote }}
+                {{- end }}
+              {{- end }}
+              image: {{ $data.image | quote }}
+              imagePullPolicy: {{ $data.imagePullPolicy | default "IfNotPresent" }}
+              {{- if $data.command }}
+              command: {{ $data.command }}
+              {{- end }}
+              {{- with $data.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+---
+{{- end }}
+{{- end }}

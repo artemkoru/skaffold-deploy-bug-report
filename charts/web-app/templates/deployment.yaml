@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web-app.fullname" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-app
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicas | default 1 }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "web-app.selectorLabels" . | nindent 6 }}
+  {{- with .Values.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+      {{- if .Values.recreatePods }}
+        rollme: {{ randAlphaNum 5 | quote }}
+      {{- end }}
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "web-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web-app
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "web-app.name" $ }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ .Values.image.name | quote }}
+          {{- if .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- end }}
+          env:
+          {{- range $key, $val := .Values.baseEnv }}
+            - name: {{ $key | quote }}
+              {{- if typeIs "string" $val }}
+              value: {{ tpl $val $ | quote }}
+              {{- else if typeIs "map[string]interface {}" $val }}
+              {{- tpl ($val | toYaml ) $ | nindent 14 }}
+              {{- else }}
+              value: {{ $val | quote }}
+              {{- end }}
+          {{- end }}
+          {{- range $key, $val := .Values.env }}
+            - name: {{ $key | quote }}
+              {{- if typeIs "string" $val }}
+              value: {{ tpl $val $ | quote }}
+              {{- else if typeIs "map[string]interface {}" $val }}
+              {{- tpl ($val | toYaml ) $ | nindent 14 }}
+              {{- else }}
+              value: {{ $val | quote }}
+              {{- end }}
+          {{- end }}
+          ports:
+          {{- range .Values.ports }}
+            - name: {{ .name | quote }}
+              containerPort: {{ .containerPort }}
+              protocol: {{ .protocol | quote }}
+          {{- end }}
+
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

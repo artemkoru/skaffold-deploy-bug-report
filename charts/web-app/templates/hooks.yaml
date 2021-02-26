@@ -1,0 +1,76 @@
+{{- $fullName := include "web-app.fullname" . -}}
+{{- range $name, $data := .Values.hooks.jobs -}}
+{{- if eq true $data.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ $fullName }}-{{ $name }}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": {{ $data.type | quote }}
+    "helm.sh/hook-weight": {{ default "-5" $data.weight | quote }}
+    "helm.sh/hook-delete-policy": "{{ default "before-hook-creation" $data.hookDeletePolicy }}"
+  labels:
+    {{- include "web-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: "hook-{{ $name }}"
+spec:
+  ttlSecondsAfterFinished: {{ default 3600 $data.ttlSecondsAfterFinished }}
+  {{- if or (gt ( int $data.backoffLimit) 0) (eq ( int $data.backoffLimit ) 0) }}
+  backoffLimit: {{ $data.backoffLimit }}
+  {{- end }}
+  template:
+    metadata:
+      name: "{{ $fullName }}-hook-{{ $name }}"
+      {{- with $data.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "web-app.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: "hook-{{ $name }}"
+    spec:
+      restartPolicy: {{ default "Never" $data.restartPolicy }}
+      containers:
+      - name: {{ $name}}
+        env:
+        {{- range $key, $val := $.Values.env }}
+          - name: {{ $key | quote }}
+          {{- if typeIs "string" $val }}
+            value: {{ tpl $val $ | quote }}
+          {{- else if typeIs "map[string]interface {}" $val }}
+            {{- tpl ($val | toYaml ) $ | nindent 12 }}
+          {{- else }}
+            value: {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        {{- range $key, $val := $.Values.hooks.env  }}
+          - name: {{ $key | quote }}
+          {{- if typeIs "string" $val }}
+            value: {{ tpl $val $ | quote }}
+          {{- else if typeIs "map[string]interface {}" $val }}
+            {{- tpl ($val | toYaml ) $ | nindent 12 }}
+          {{- else }}
+            value: {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        {{- range $key, $val := $data.env  }}
+          - name: {{ $key | quote }}
+          {{- if typeIs "string" $val }}
+            value: {{ tpl $val $ | quote }}
+          {{- else if typeIs "map[string]interface {}" $val }}
+            {{- tpl ($val | toYaml ) $ | nindent 12 }}
+          {{- else }}
+            value: {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        image: "{{ $data.image }}"
+        imagePullPolicy: {{ default "IfNotPresent" $data.imagePullPolicy }}
+        command: {{ $data.command }}
+        {{- with $data.args }}
+        args:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+---
+{{- end }}
+{{- end }}

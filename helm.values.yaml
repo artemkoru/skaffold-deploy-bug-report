@@ -1,0 +1,36 @@
+nameOverride: test-nginx
+
+livenessProbe: 
+  initialDelaySeconds: 15
+  failureThreshold: 3
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 5
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  initialDelaySeconds: 15
+  failureThreshold: 3
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 5
+  httpGet:
+    path: /
+    port: http
+
+replicas: 1
+
+ports:
+  - containerPort: 80
+    protocol: TCP
+    name: http
+
+service:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+
+ingress:
+  enabled: false

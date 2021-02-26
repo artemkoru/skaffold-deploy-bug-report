@@ -1,0 +1,24 @@
+apiVersion: skaffold/v2beta7
+kind: Config
+metadata:
+  name: Deployment nginx-image
+build:
+  artifacts:
+    - image: "nginx-image"
+      context: .
+  tagPolicy:
+    envTemplate:
+      template: "{{.DOCKER_IMAGE_TAG}}"
+deploy:
+  #kubeContext: minikube
+  helm:
+    releases:
+      - name: "test-nginx"
+        chartPath: ./charts/web-app
+        remote: false
+        wait: true
+        upgradeOnChange: true
+        artifactOverrides:
+          image.name: nginx-image
+        valuesFiles:
+          - helm.values.yaml
